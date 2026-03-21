@@ -1,5 +1,7 @@
 # 🧬 FossTree
 
+[![Build](https://github.com/piyumalanthony/FossTree/actions/workflows/build.yml/badge.svg)](https://github.com/piyumalanthony/FossTree/actions/workflows/build.yml)
+
 ### Fossil Calibration Annotation for Bayesian Molecular Dating
 
 <p align="center">
@@ -54,17 +56,17 @@ FossTree is a standalone tool for working with **fossil calibrations** on phylog
 ├─────────────────────────────────────────────────────────────┤
 │  Phase 2: Tree Info │ Phase 3: BEAST2 XML │ Phase 4: View   │
 │  ┌─────────────────────────────────────────────────────┐    │
-│  │  Source: strategy1.tree                              │    │
+│  │  Source: strategy1.tree                             │    │
 │  │  Taxa: 54    Calibrations: 34    Max depth: 15      │    │
-│  │                                                      │    │
+│  │                                                     │    │
 │  │  # │ Clade Name              │ Lower │ Upper │ Taxa │    │
 │  │  1 │ root_all                │ 5.529 │ 8.330 │   54 │    │
 │  │  2 │ Acropora_to_Nematostel  │ 5.290 │ 6.361 │    5 │    │
 │  │  3 │ Homo_sapie_to_Mus_musc  │ 0.616 │ 1.646 │    2 │    │
-│  │  ...                                                 │    │
+│  │  ...                                                │    │
 │  └─────────────────────────────────────────────────────┘    │
 ├─────────────────────────────────────────────────────────────┤
-│  Status: Loaded strategy1.tree — 54 taxa, 34 calibrations  │
+│  Status: Loaded strategy1.tree — 54 taxa, 34 calibrations   │
 └─────────────────────────────────────────────────────────────┘
 ```
 

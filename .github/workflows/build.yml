@@ -2,8 +2,9 @@ name: Build Standalone Executables
 
 on:
   push:
-    tags:
-      - "v*"
+  pull_request:
+    types:
+      - closed
   workflow_dispatch:
 
 permissions:
@@ -21,6 +22,7 @@ jobs:
           - os: macos-latest
             artifact: FossTree-macos
 
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     runs-on: ${{ matrix.os }}
 
     steps:
