@@ -791,12 +791,12 @@ class FossTreeMainWindow(QMainWindow):
         # ── Tabs ──
         self.tabs = QTabWidget()
         self.info_tab = TreeInfoTab()
-        self.tabs.addTab(self.info_tab, "Phase 2: Tree Info")
+        self.tabs.addTab(self.info_tab, "Tree Info")
         self.convert_tab = ConvertTab()
-        self.tabs.addTab(self.convert_tab, "Phase 3: BEAST2 XML")
+        self.tabs.addTab(self.convert_tab, "BEAST2 XML")
         self.view_tab = ViewTab()
         self.view_tab.on_tree_modified = self._refresh_after_calibration_change
-        self.tabs.addTab(self.view_tab, "Phase 4: Visualization")
+        self.tabs.addTab(self.view_tab, "Visualization & Annotation")
 
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, False)
