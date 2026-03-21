@@ -1,0 +1,81 @@
+name: Build Standalone Executables
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: FossTree-linux
+          - os: windows-latest
+            artifact: FossTree-windows
+          - os: macos-latest
+            artifact: FossTree-macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller>=6.0
+
+      - name: Build with PyInstaller
+        run: pyinstaller fosstree.spec
+
+      - name: Test executable (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          ./dist/FossTree/FossTree info strategy1.tree
+
+      - name: Test executable (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\dist\FossTree\FossTree.exe info strategy1.tree
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/FossTree/
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Package artifacts
+        run: |
+          cd FossTree-linux && tar czf ../FossTree-linux.tar.gz . && cd ..
+          cd FossTree-macos && tar czf ../FossTree-macos.tar.gz . && cd ..
+          cd FossTree-windows && zip -r ../FossTree-windows.zip . && cd ..
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            FossTree-linux.tar.gz
+            FossTree-macos.tar.gz
+            FossTree-windows.zip
+          generate_release_notes: true

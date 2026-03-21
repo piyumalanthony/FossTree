@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fosstree"
+version = "0.1.0"
+description = "Fossil calibration annotation for Bayesian molecular dating"
+readme = "README.md"
+license = "GPL-3.0-only"
+requires-python = ">=3.10"
+authors = [
+    { name = "Piyumal Anthony Demotte", email = "36238055+piyumalanthony@users.noreply.github.com" },
+]
+keywords = ["phylogenetics", "fossil-calibration", "mcmctree", "beast2", "molecular-dating"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "PyQt5>=5.15",
+    "matplotlib>=3.8",
+]
+
+[project.scripts]
+fosstree = "fosstree.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "pyinstaller>=6.0",
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+include = ["fosstree*"]
