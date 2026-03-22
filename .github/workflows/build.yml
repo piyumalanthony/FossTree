@@ -16,11 +16,11 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            artifact: FossTree-linux
+            artifact: fosstree-linux
           - os: windows-latest
-            artifact: FossTree-windows
+            artifact: fosstree-windows
           - os: macos-latest
-            artifact: FossTree-macos
+            artifact: fosstree-macos
 
     if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
     runs-on: ${{ matrix.os }}
@@ -45,18 +45,18 @@ jobs:
       - name: Test executable (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
-          ./dist/FossTree/FossTree info strategy1.tree
+          ./dist/fosstree/fosstree info strategy1.tree
 
       - name: Test executable (Windows)
         if: runner.os == 'Windows'
         run: |
-          .\dist\FossTree\FossTree.exe info strategy1.tree
+          .\dist\fosstree\fosstree.exe info strategy1.tree
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: dist/FossTree/
+          path: dist/fosstree/
 
   release:
     needs: build
@@ -69,15 +69,15 @@ jobs:
 
       - name: Package artifacts
         run: |
-          cd FossTree-linux && tar czf ../FossTree-linux.tar.gz . && cd ..
-          cd FossTree-macos && tar czf ../FossTree-macos.tar.gz . && cd ..
-          cd FossTree-windows && zip -r ../FossTree-windows.zip . && cd ..
+          cd fosstree-linux && tar czf ../fosstree-linux.tar.gz . && cd ..
+          cd fosstree-macos && tar czf ../fosstree-macos.tar.gz . && cd ..
+          cd fosstree-windows && zip -r ../fosstree-windows.zip . && cd ..
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            FossTree-linux.tar.gz
-            FossTree-macos.tar.gz
-            FossTree-windows.zip
+            fosstree-linux.tar.gz
+            fosstree-macos.tar.gz
+            fosstree-windows.zip
           generate_release_notes: true

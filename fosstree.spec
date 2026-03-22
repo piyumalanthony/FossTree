@@ -1,12 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec file for FossTree.
+"""PyInstaller spec file for fosstree.
 
 Build:
     pyinstaller fosstree.spec
 
 Output:
-    dist/FossTree/          (--onedir, default)
-    dist/FossTree.exe       (--onefile, if toggled below)
+    dist/fosstree/          (--onedir, default)
+    dist/fosstree.exe       (--onefile, if toggled below)
 """
 
 import sys
@@ -66,7 +66,7 @@ if ONE_FILE:
         a.zipfiles,
         a.datas,
         [],
-        name="FossTree",
+        name="fosstree",
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
@@ -85,7 +85,7 @@ else:
         a.scripts,
         [],
         exclude_binaries=True,
-        name="FossTree",
+        name="fosstree",
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
@@ -108,19 +108,19 @@ else:
         strip=False,
         upx=True,
         upx_exclude=[],
-        name="FossTree",
+        name="fosstree",
     )
 
 # macOS: create .app bundle
 if sys.platform == "darwin" and not ONE_FILE:
     app = BUNDLE(
         coll,
-        name="FossTree.app",
+        name="fosstree.app",
         icon=None,
         bundle_identifier="com.fosstree.app",
         info_plist={
             "CFBundleShortVersionString": "0.1.0",
-            "CFBundleName": "FossTree",
+            "CFBundleName": "fosstree",
             "NSHighResolutionCapable": True,
         },
     )

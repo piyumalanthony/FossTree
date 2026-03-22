@@ -796,7 +796,7 @@ class FossTreeMainWindow(QMainWindow):
         self.tabs.addTab(self.convert_tab, "BEAST2 XML")
         self.view_tab = ViewTab()
         self.view_tab.on_tree_modified = self._refresh_after_calibration_change
-        self.tabs.addTab(self.view_tab, "Visualization & Annotation")
+        self.tabs.addTab(self.view_tab, "Visualization and Annotation")
 
         for i in range(self.tabs.count()):
             self.tabs.setTabEnabled(i, False)
