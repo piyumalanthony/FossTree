@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 from typing import Optional
@@ -11,6 +10,7 @@ from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -41,24 +41,79 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
 import matplotlib.pyplot as plt
 
-from fosstree.models import Calibration, PhyloTree, TreeNode
-from fosstree.utils import BeastXMLGenerator, NewickParser, NewickWriter
+from fosstree.models import CalibrationBase, Calibration, PhyloTree, TreeNode
+from fosstree.utils import BeastXMLGenerator, NewickParser, NewickWriter, parse_calibration
 from fosstree.views.tree_plot import PlotResult, TreeVisualizer
 
 
 # ── Calibration Dialog ─────────────────────────────────────────────────────
 
 
+_CAL_HELP = {
+    "B": (
+        "B(lower,upper,p_lower,p_upper)  e.g. B(5.29,6.361,0.001,0.025)",
+        "Format: B(lower, upper[, p_lower, p_upper])\n"
+        "  lower  = minimum age constraint\n"
+        "  upper  = maximum age constraint\n"
+        "  p_lower, p_upper = tail probabilities (default: 0.001, 0.025)",
+    ),
+    "L": (
+        "L(tL,p,c,pL)  e.g. L(0.06,0.1,1,0.025)",
+        "Format: L(tL[, p, c, pL])\n"
+        "  tL = minimum age bound\n"
+        "  p  = offset (default: 0.1)\n"
+        "  c  = scale parameter (default: 1)\n"
+        "  pL = left tail probability (default: 0.025)",
+    ),
+    "U": (
+        "U(tU,pR)  e.g. U(0.08,0.025)",
+        "Format: U(tU[, pR])\n"
+        "  tU = maximum age bound\n"
+        "  pR = right tail probability (default: 0.025)",
+    ),
+    "G": (
+        "G(alpha,beta)  e.g. G(2,5)",
+        "Format: G(alpha, beta)\n"
+        "  alpha = shape parameter\n"
+        "  beta  = rate parameter",
+    ),
+    "SN": (
+        "SN(location,scale,shape)  e.g. SN(0.5,0.1,3)",
+        "Format: SN(location, scale, shape)\n"
+        "  location = location parameter\n"
+        "  scale    = scale parameter\n"
+        "  shape    = shape/skewness parameter",
+    ),
+    "ST": (
+        "ST(location,scale,shape,df)  e.g. ST(0.5,0.1,3,5)",
+        "Format: ST(location, scale, shape, df)\n"
+        "  location = location parameter\n"
+        "  scale    = scale parameter\n"
+        "  shape    = shape/skewness parameter\n"
+        "  df       = degrees of freedom",
+    ),
+    "S2N": (
+        "S2N(p1,loc1,scale1,shape1,loc2,scale2,shape2)",
+        "Format: S2N(p1, loc1, scale1, shape1, loc2, scale2, shape2)\n"
+        "  p1    = mixing proportion (weight of first component)\n"
+        "  loc1, scale1, shape1 = first skew-normal params\n"
+        "  loc2, scale2, shape2 = second skew-normal params",
+    ),
+}
+
+_CAL_TYPES = list(_CAL_HELP.keys())
+
+
 class CalibrationDialog(QDialog):
     """Popup dialog for adding/editing a fossil calibration on an internal node."""
 
-    def __init__(self, node: TreeNode, parent=None):
+    def __init__(self, node: TreeNode, parent=None, show_tip_dist: bool = False):
         super().__init__(parent)
         self.node = node
-        self.result_calibration: Optional[Calibration] = None
+        self.result_calibration: Optional[CalibrationBase] = None
 
         self.setWindowTitle("Add / Edit Fossil Calibration")
-        self.setMinimumWidth(450)
+        self.setMinimumWidth(500)
 
         layout = QVBoxLayout(self)
 
@@ -70,7 +125,12 @@ class CalibrationDialog(QDialog):
         else:
             taxa_str = ", ".join(leaves[:3]) + f" ... ({n} total) ... " + ", ".join(leaves[-3:])
 
-        info_label = QLabel(f"Node ID: {node.node_id}  |  Descendant taxa: {n}\n{taxa_str}")
+        info_text = f"Node ID: {node.node_id}  |  Descendant taxa: {n}"
+        if show_tip_dist and node.tip_dist is not None:
+            info_text += f"  |  Tip distance: {node.tip_dist:.6g}"
+        info_text += f"\n{taxa_str}"
+
+        info_label = QLabel(info_text)
         info_label.setWordWrap(True)
         info_label.setFont(QFont("monospace", 9))
         info_label.setStyleSheet("background: #f0f0f0; padding: 8px; border-radius: 4px;")
@@ -78,10 +138,22 @@ class CalibrationDialog(QDialog):
 
         # Current calibration
         if node.calibration:
-            cur = node.calibration
-            cur_label = QLabel(f"Current: B({cur.lower},{cur.upper},{cur.p_lower},{cur.p_upper})")
+            cur_label = QLabel(f"Current: {node.calibration.to_mcmctree()}")
             cur_label.setStyleSheet("color: #0066cc; font-weight: bold;")
             layout.addWidget(cur_label)
+
+        # Type selector
+        type_layout = QHBoxLayout()
+        type_layout.addWidget(QLabel("Calibration type:"))
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(_CAL_TYPES)
+        if node.calibration:
+            idx = _CAL_TYPES.index(node.calibration.cal_type) if node.calibration.cal_type in _CAL_TYPES else 0
+            self.type_combo.setCurrentIndex(idx)
+        self.type_combo.currentTextChanged.connect(self._on_type_changed)
+        type_layout.addWidget(self.type_combo)
+        type_layout.addStretch()
+        layout.addLayout(type_layout)
 
         # Input
         layout.addWidget(QLabel("Enter calibration string (MCMCTree format):"))
@@ -89,22 +161,17 @@ class CalibrationDialog(QDialog):
         self.input_field = QLineEdit()
         self.input_field.setFont(QFont("monospace", 12))
         if node.calibration:
-            cal = node.calibration
-            self.input_field.setText(f"B({cal.lower},{cal.upper},{cal.p_lower},{cal.p_upper})")
-        else:
-            self.input_field.setPlaceholderText("B(lower,upper,p_lower,p_upper)  e.g. B(5.29,6.361,0.001,0.025)")
+            self.input_field.setText(node.calibration.to_mcmctree())
         layout.addWidget(self.input_field)
 
-        # Help text
-        help_label = QLabel(
-            "Format: B(lower, upper[, p_lower, p_upper])\n"
-            "  lower  = minimum age constraint\n"
-            "  upper  = maximum age constraint\n"
-            "  p_lower, p_upper = tail probabilities (default: 0.001, 0.025)"
-        )
-        help_label.setFont(QFont("monospace", 8))
-        help_label.setStyleSheet("color: #666;")
-        layout.addWidget(help_label)
+        # Help text (updated dynamically)
+        self.help_label = QLabel()
+        self.help_label.setFont(QFont("monospace", 8))
+        self.help_label.setStyleSheet("color: #666;")
+        layout.addWidget(self.help_label)
+
+        # Set initial placeholder and help
+        self._on_type_changed(self.type_combo.currentText())
 
         # Buttons
         btn_box = QDialogButtonBox()
@@ -120,20 +187,15 @@ class CalibrationDialog(QDialog):
 
         layout.addWidget(btn_box)
 
-    def _parse_input(self) -> Optional[Calibration]:
+    def _on_type_changed(self, cal_type: str) -> None:
+        placeholder, help_text = _CAL_HELP.get(cal_type, _CAL_HELP["B"])
+        if not self.input_field.text():
+            self.input_field.setPlaceholderText(placeholder)
+        self.help_label.setText(help_text)
+
+    def _parse_input(self) -> Optional[CalibrationBase]:
         text = self.input_field.text().strip()
-        m = re.match(
-            r"B\(\s*([\d.]+)\s*,\s*([\d.]+)\s*(?:,\s*([\d.]+)\s*,\s*([\d.]+)\s*)?\)",
-            text,
-        )
-        if not m:
-            return None
-        return Calibration(
-            lower=float(m.group(1)),
-            upper=float(m.group(2)),
-            p_lower=float(m.group(3)) if m.group(3) else 0.001,
-            p_upper=float(m.group(4)) if m.group(4) else 0.025,
-        )
+        return parse_calibration(text)
 
     def _apply(self) -> None:
         cal = self._parse_input()
@@ -142,12 +204,7 @@ class CalibrationDialog(QDialog):
                 self,
                 "Invalid Format",
                 "Could not parse calibration string.\n"
-                "Expected: B(lower,upper) or B(lower,upper,p_lower,p_upper)",
-            )
-            return
-        if cal.lower >= cal.upper:
-            QMessageBox.warning(
-                self, "Invalid Range", "Lower bound must be less than upper bound."
+                "Supported: B(), L(), U(), G(), SN(), ST(), S2N()",
             )
             return
         self.result_calibration = cal
@@ -175,7 +232,7 @@ class TreeInfoTab(QWidget):
 
         self.table = QTableWidget()
         self.table.setColumnCount(5)
-        self.table.setHorizontalHeaderLabels(["#", "Clade Name", "Lower", "Upper", "# Taxa"])
+        self.table.setHorizontalHeaderLabels(["#", "Clade Name", "Type", "Calibration", "# Taxa"])
         self.table.horizontalHeader().setStretchLastSection(True)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.table.setAlternatingRowColors(True)
@@ -196,10 +253,10 @@ class TreeInfoTab(QWidget):
             cal = entry["calibration"]
             self.table.setItem(row, 0, QTableWidgetItem(str(row + 1)))
             self.table.setItem(row, 1, QTableWidgetItem(entry["clade_name"]))
-            self.table.setItem(row, 2, QTableWidgetItem(f"{cal.lower:.4f}"))
-            self.table.setItem(row, 3, QTableWidgetItem(f"{cal.upper:.4f}"))
+            self.table.setItem(row, 2, QTableWidgetItem(cal.cal_type))
+            self.table.setItem(row, 3, QTableWidgetItem(cal.short_label()))
             self.table.setItem(row, 4, QTableWidgetItem(str(len(entry["taxa"]))))
-            for col in (0, 2, 3, 4):
+            for col in (0, 2, 4):
                 item = self.table.item(row, col)
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
 
@@ -392,16 +449,20 @@ class ViewTab(QWidget):
         opts_layout.addWidget(self.theme_combo)
         opts_layout.addWidget(QLabel("Font (leaves):"))
         self.font_leaf = QSpinBox()
-        self.font_leaf.setRange(6, 24)
+        self.font_leaf.setRange(1, 24)
         self.font_leaf.setValue(11)
         self.font_leaf.valueChanged.connect(self._on_option_changed)
         opts_layout.addWidget(self.font_leaf)
         opts_layout.addWidget(QLabel("Font (labels):"))
         self.font_label = QSpinBox()
-        self.font_label.setRange(5, 18)
+        self.font_label.setRange(1, 18)
         self.font_label.setValue(8)
         self.font_label.valueChanged.connect(self._on_option_changed)
         opts_layout.addWidget(self.font_label)
+        self.chk_branch_lengths = QCheckBox("Branch lengths")
+        self.chk_branch_lengths.setChecked(False)
+        self.chk_branch_lengths.stateChanged.connect(self._on_option_changed)
+        opts_layout.addWidget(self.chk_branch_lengths)
         opts_layout.addWidget(QLabel("Export DPI:"))
         self.dpi_spin = QSpinBox()
         self.dpi_spin.setRange(72, 600)
@@ -521,6 +582,7 @@ class ViewTab(QWidget):
             font_size_leaf=self.font_leaf.value(),
             font_size_label=self.font_label.value(),
             dpi=dpi,
+            show_branch_lengths=self.chk_branch_lengths.isChecked(),
         )
 
     # ── Rendering ──────────────────────────────────────────────────────
@@ -545,7 +607,7 @@ class ViewTab(QWidget):
         self.figure.set_dpi(self._screen_dpi)
 
         ax = self.figure.add_subplot(111)
-        title = f"{self.tree.source} — Phylogenetic Tree with B() Fossil Calibrations"
+        title = f"{self.tree.source} — Phylogenetic Tree with Fossil Calibrations"
         self._plot_result = viz.plot(self.tree, title=title, ax=ax)
 
         px_w = int(fig_width * self._screen_dpi)
@@ -624,9 +686,12 @@ class ViewTab(QWidget):
         # Build tooltip text
         if node.calibration:
             cal = node.calibration
-            header = f"Calibrated node (ID {node.node_id}) — B({cal.lower},{cal.upper})\n"
+            header = f"Calibrated node (ID {node.node_id}) — {cal.short_label()}"
         else:
-            header = f"Internal node (ID {node.node_id}) — no calibration\n"
+            header = f"Internal node (ID {node.node_id}) — no calibration"
+
+        if self.chk_branch_lengths.isChecked() and node.tip_dist is not None:
+            header += f"\nTip distance: {node.tip_dist:.6g}"
 
         if n <= 12:
             taxa_text = "\n".join(f"  {t}" for t in leaves)
@@ -635,7 +700,7 @@ class ViewTab(QWidget):
             bot = "\n".join(f"  {t}" for t in leaves[-5:])
             taxa_text = f"{top}\n  ... ({n - 10} more) ...\n{bot}"
 
-        tooltip = f"{header}{n} descendant taxa:\n{taxa_text}\n\nDouble-click to add/edit calibration"
+        tooltip = f"{header}\n{n} descendant taxa:\n{taxa_text}\n\nDouble-click to add/edit calibration"
 
         QToolTip.showText(QCursor.pos(), tooltip, self.scroll_canvas.canvas)
 
@@ -658,9 +723,12 @@ class ViewTab(QWidget):
             # ── Single click: show leaves in info panel ──
             if node.calibration:
                 cal = node.calibration
-                header = f"Node {node.node_id} — B({cal.lower},{cal.upper},{cal.p_lower},{cal.p_upper})"
+                header = f"Node {node.node_id} — {cal.to_mcmctree()}"
             else:
                 header = f"Node {node.node_id} — no calibration"
+
+            if self.chk_branch_lengths.isChecked() and node.tip_dist is not None:
+                header += f"\nTip distance: {node.tip_dist:.6g}"
 
             taxa_list = "\n".join(f"  {i+1}. {t}" for i, t in enumerate(leaves))
             self.node_info.setPlainText(
@@ -670,7 +738,10 @@ class ViewTab(QWidget):
     # ── Calibration editing ────────────────────────────────────────────
 
     def _open_calibration_dialog(self, node: TreeNode) -> None:
-        dlg = CalibrationDialog(node, parent=self)
+        dlg = CalibrationDialog(
+            node, parent=self,
+            show_tip_dist=self.chk_branch_lengths.isChecked(),
+        )
         result = dlg.exec_()
 
         if result == QDialog.DialogCode.Accepted:
@@ -774,11 +845,11 @@ class FossTreeMainWindow(QMainWindow):
         main_layout = QVBoxLayout(central)
 
         # ── File loader ──
-        file_group = QGroupBox("Phase 1: Load Tree File")
+        file_group = QGroupBox("Load Tree File")
         file_layout = QHBoxLayout(file_group)
         self.file_path_label = QLineEdit()
         self.file_path_label.setReadOnly(True)
-        self.file_path_label.setPlaceholderText("Select a Newick tree file with B() calibrations...")
+        self.file_path_label.setPlaceholderText("Select a Newick tree file with MCMCTree calibrations...")
         file_layout.addWidget(self.file_path_label)
         btn_browse = QPushButton("Browse...")
         btn_browse.clicked.connect(self._browse_file)
@@ -816,6 +887,8 @@ class FossTreeMainWindow(QMainWindow):
             self.file_path_label.setText(path)
 
     def _load_tree(self) -> None:
+        import warnings
+
         path = self.file_path_label.text().strip()
         if not path:
             QMessageBox.warning(self, "No File", "Please select a tree file first.")
@@ -824,7 +897,11 @@ class FossTreeMainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"File not found:\n{path}")
             return
         try:
-            self.tree = self.parser.parse_file(path)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                self.tree = self.parser.parse_file(path)
+                for w in caught:
+                    QMessageBox.information(self, "Format Notice", str(w.message))
         except Exception as e:
             QMessageBox.critical(self, "Parse Error", f"Failed to parse tree:\n{e}")
             return

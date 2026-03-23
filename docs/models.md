@@ -1,59 +1,60 @@
-# 🧬 Models — `fosstree.models`
+# Models — `fosstree.models`
 
-The models module defines the core data structures for representing phylogenetic trees with fossil calibrations.
+Core data structures for phylogenetic trees with fossil calibrations.
 
 **Source**: `fosstree/models/tree.py`
 
 ---
 
-## `Calibration`
+## Calibration Types
 
-Represents an MCMCTree `B(lower, upper, p_lower, p_upper)` uniform bound calibration.
+FossTree supports all MCMCTree calibration types via an abstract base class `CalibrationBase` and concrete subclasses.
+
+### `CalibrationBase` (abstract)
+
+All calibration types implement:
+
+| Method / Property | Returns | Description |
+|-------------------|---------|-------------|
+| `cal_type` | `str` | Type code: `"B"`, `"L"`, `"U"`, `"G"`, `"SN"`, `"ST"`, `"S2N"` |
+| `representative_age` | `float` | Scalar age for color mapping |
+| `midpoint` | `float` | Alias for `representative_age` |
+| `to_mcmctree()` | `str` | Full MCMCTree string, e.g. `"B(0.5,1.0,0.001,0.025)"` |
+| `short_label()` | `str` | Compact label, e.g. `"B(0.5,1.0)"` |
+
+### Concrete Types
+
+| Class | Format | Fields |
+|-------|--------|--------|
+| `BoundsCalibration` | `B(lower, upper, p_lower, p_upper)` | lower, upper, p_lower=0.001, p_upper=0.025 |
+| `LowerCalibration` | `L(tL, p, c, pL)` | tL, p=0.1, c=1.0, pL=0.025 |
+| `UpperCalibration` | `U(tU, pR)` | tU, pR=0.025 |
+| `GammaCalibration` | `G(alpha, beta)` | alpha, beta |
+| `SkewNormalCalibration` | `SN(location, scale, shape)` | location, scale, shape |
+| `SkewTCalibration` | `ST(location, scale, shape, df)` | location, scale, shape, df |
+| `Skew2NormalsCalibration` | `S2N(p1, loc1, s1, sh1, loc2, s2, sh2)` | p1, loc1, scale1, shape1, loc2, scale2, shape2 |
+
+`Calibration` is an alias for `BoundsCalibration` (backward compatibility).
 
 ```python
-from fosstree.models import Calibration
+from fosstree.models import Calibration, GammaCalibration
+from fosstree.utils import parse_calibration
 
-cal = Calibration(lower=5.29, upper=6.361, p_lower=0.001, p_upper=0.025)
-
-cal.midpoint     # 5.8255 — used for colormap in visualization
+# Direct construction
+cal = Calibration(lower=5.29, upper=6.361)
 cal.to_mcmctree()  # "B(5.29,6.361,0.001,0.025)"
+
+# Parse from string
+cal = parse_calibration("G(2,5)")
+cal.cal_type         # "G"
+cal.representative_age  # 0.4
 ```
-
-### Fields
-
-| Field | Type | Default | Description |
-|-------|------|---------|-------------|
-| `lower` | `float` | required | Minimum age constraint |
-| `upper` | `float` | required | Maximum age constraint |
-| `p_lower` | `float` | 0.001 | Left tail probability |
-| `p_upper` | `float` | 0.025 | Right tail probability |
-
-### Properties
-
-| Property | Returns | Description |
-|----------|---------|-------------|
-| `midpoint` | `float` | `(lower + upper) / 2` |
 
 ---
 
 ## `TreeNode`
 
-Represents a single node in a phylogenetic tree (either a leaf or an internal node).
-
-```python
-from fosstree.models import TreeNode, Calibration
-
-# Leaf node
-leaf = TreeNode(node_id=0, name="Homo_sapie")
-leaf.is_leaf      # True
-leaf.is_root      # True (no parent)
-
-# Internal node with calibration
-internal = TreeNode(node_id=1)
-internal.children = [leaf]
-leaf.parent = internal
-internal.calibration = Calibration(lower=0.616, upper=1.646)
-```
+A single node in a phylogenetic tree.
 
 ### Fields
 
@@ -63,67 +64,42 @@ internal.calibration = Calibration(lower=0.616, upper=1.646)
 | `name` | `str \| None` | `None` | Taxon name (leaves only) |
 | `children` | `list[TreeNode]` | `[]` | Child nodes |
 | `parent` | `TreeNode \| None` | `None` | Parent node |
-| `calibration` | `Calibration \| None` | `None` | Fossil calibration |
+| `calibration` | `CalibrationBase \| None` | `None` | Fossil calibration |
+| `tip_dist` | `float \| None` | `None` | Max branch-length distance to furthest leaf |
 
-### Properties
-
-| Property | Returns | Description |
-|----------|---------|-------------|
-| `is_leaf` | `bool` | `True` if no children |
-| `is_root` | `bool` | `True` if no parent |
-
-### Methods
+### Key Methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
 | `get_leaves()` | `list[TreeNode]` | All leaf nodes under this node |
-| `get_leaf_names()` | `list[str]` | Sorted taxon names of all descendant leaves |
-| `get_depth()` | `int` | Number of edges from root to this node |
-| `traverse_preorder()` | `Iterator[TreeNode]` | Pre-order traversal (root first) |
-| `traverse_postorder()` | `Iterator[TreeNode]` | Post-order traversal (leaves first) |
-| `traverse_leaves()` | `Iterator[TreeNode]` | Left-to-right leaf traversal |
+| `get_leaf_names()` | `list[str]` | Sorted taxon names of descendant leaves |
+| `get_depth()` | `int` | Edges from root to this node |
+| `traverse_preorder()` | `Iterator` | Pre-order traversal |
+| `traverse_postorder()` | `Iterator` | Post-order traversal |
+| `traverse_leaves()` | `Iterator` | Left-to-right leaf traversal |
 
 ---
 
 ## `PhyloTree`
 
-High-level container representing a complete phylogenetic tree with its calibrations.
-
-```python
-from fosstree import NewickParser
-
-tree = NewickParser().parse_file("strategy1.tree")
-
-tree.n_taxa           # 54
-tree.n_calibrations   # 34
-tree.taxa             # ['Amphimedon', 'Suberites_', ...]
-tree.max_depth()      # 15
-tree.calibrated_nodes # [TreeNode(...), ...]
-
-# Print summary
-print(tree.summary())
-
-# Get calibration table with unique clade names
-for entry in tree.get_calibration_table():
-    print(entry['clade_name'], entry['calibration'], len(entry['taxa']))
-```
+High-level container for a complete phylogenetic tree.
 
 ### Properties
 
 | Property | Returns | Description |
 |----------|---------|-------------|
-| `root` | `TreeNode` | Root node of the tree |
+| `root` | `TreeNode` | Root node |
 | `source` | `str` | Source filename or label |
-| `taxa` | `list[str]` | All taxon names in traversal order |
+| `taxa` | `list[str]` | All taxon names |
 | `n_taxa` | `int` | Number of taxa |
-| `calibrated_nodes` | `list[TreeNode]` | All nodes with calibrations |
+| `calibrated_nodes` | `list[TreeNode]` | Nodes with calibrations |
 | `n_calibrations` | `int` | Number of calibrations |
 
 ### Methods
 
 | Method | Returns | Description |
 |--------|---------|-------------|
-| `get_clade_name(node)` | `str` | Human-readable name (e.g., `"Homo_sapie_to_Mus_muscul"`) |
-| `get_calibration_table()` | `list[dict]` | Table with keys: `node`, `clade_name`, `calibration`, `taxa` |
-| `max_depth()` | `int` | Maximum tree depth (edges from root to deepest leaf) |
-| `summary()` | `str` | Formatted text summary with calibration table |
+| `get_calibration_table()` | `list[dict]` | Table with `node`, `clade_name`, `calibration`, `taxa` |
+| `compute_tip_distances()` | `None` | Compute `tip_dist` for all nodes from branch lengths |
+| `max_depth()` | `int` | Max tree depth |
+| `summary()` | `str` | Text summary with calibration table |

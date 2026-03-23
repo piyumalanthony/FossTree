@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fosstree.models import PhyloTree
+from fosstree.models import (
+    CalibrationBase,
+    BoundsCalibration,
+    LowerCalibration,
+    UpperCalibration,
+    GammaCalibration,
+    PhyloTree,
+)
 
 
 class BeastXMLGenerator:
@@ -19,10 +26,67 @@ class BeastXMLGenerator:
         """
         Args:
             tree_ref: BEAST2 tree ID reference (e.g. "@Tree.t:alignment").
-            uniform_id_start: Starting index for Uniform distribution IDs.
+            uniform_id_start: Starting index for distribution IDs.
         """
         self.tree_ref = tree_ref
         self.uniform_id_start = uniform_id_start
+
+    def _generate_distribution_xml(
+        self, cal: CalibrationBase, uid: int, indent: str = "                    "
+    ) -> tuple[str, str]:
+        """Generate the BEAST2 distribution XML element for a calibration.
+
+        Returns:
+            Tuple of (xml_element, warning_comment). warning_comment is empty
+            if the mapping is exact.
+        """
+        if isinstance(cal, BoundsCalibration):
+            xml = (
+                f'{indent}<Uniform id="Uniform.{uid}" '
+                f'lower="{cal.lower}" name="distr" upper="{cal.upper}"/>'
+            )
+            return xml, ""
+
+        if isinstance(cal, UpperCalibration):
+            xml = (
+                f'{indent}<Uniform id="Uniform.{uid}" '
+                f'lower="0.0" name="distr" upper="{cal.tU}"/>'
+            )
+            return xml, ""
+
+        if isinstance(cal, GammaCalibration):
+            scale = 1.0 / cal.beta if cal.beta != 0 else 1.0
+            xml = (
+                f'{indent}<Gamma id="Gamma.{uid}" name="distr">\n'
+                f'{indent}    <parameter name="alpha">{cal.alpha}</parameter>\n'
+                f'{indent}    <parameter name="beta">{scale}</parameter>\n'
+                f'{indent}</Gamma>'
+            )
+            return xml, ""
+
+        if isinstance(cal, LowerCalibration):
+            xml = (
+                f'{indent}<Exponential id="Exponential.{uid}" name="distr" offset="{cal.tL}">\n'
+                f'{indent}    <parameter name="mean">1.0</parameter>\n'
+                f'{indent}</Exponential>'
+            )
+            warning = (
+                f"{indent}<!-- WARNING: {cal.to_mcmctree()} approximated as "
+                f"Exponential with offset. Review parameters. -->"
+            )
+            return xml, warning
+
+        # SN, ST, S2N — no direct BEAST2 equivalent
+        age = cal.representative_age
+        xml = (
+            f'{indent}<Uniform id="Uniform.{uid}" '
+            f'lower="0.0" name="distr" upper="{age * 2}"/>'
+        )
+        warning = (
+            f"{indent}<!-- WARNING: {cal.to_mcmctree()} has no direct BEAST2 equivalent. "
+            f"Using placeholder Uniform(0, {age * 2}). Review and replace. -->"
+        )
+        return xml, warning
 
     def generate(self, tree: PhyloTree) -> tuple[str, str]:
         """Generate BEAST2 XML blocks from the tree's calibrations.
@@ -65,10 +129,12 @@ class BeastXMLGenerator:
                     )
 
             prior_lines.append("                    </taxonset>")
-            prior_lines.append(
-                f'                    <Uniform id="Uniform.{uid}" '
-                f'lower="{cal.lower}" name="distr" upper="{cal.upper}"/>'
-            )
+
+            dist_xml, warning = self._generate_distribution_xml(cal, uid)
+            if warning:
+                prior_lines.append(warning)
+            prior_lines.append(dist_xml)
+
             prior_lines.append("                </distribution>")
             prior_lines.append("")
 

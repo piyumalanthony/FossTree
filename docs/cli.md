@@ -1,6 +1,4 @@
-# ⌨️ CLI Reference — `fosstree`
-
-FossTree provides a command-line interface with four subcommands.
+# CLI Reference — `fosstree`
 
 **Source**: `fosstree/__main__.py`
 
@@ -10,10 +8,8 @@ FossTree provides a command-line interface with four subcommands.
 
 ```bash
 fosstree [command] [arguments]
-fosstree --help
+fosstree          # launches GUI (default)
 ```
-
-When invoked with **no arguments**, the GUI launches by default.
 
 ---
 
@@ -23,114 +19,59 @@ When invoked with **no arguments**, the GUI launches by default.
 
 ```bash
 fosstree gui
-fosstree          # same (default when no args)
 ```
 
-Opens the PyQt5 graphical interface. See [GUI Documentation](gui.md).
-
----
-
 ### `info` — Tree Summary
-
-Display tree statistics and calibration table.
 
 ```bash
 fosstree info <tree_file>
 ```
 
+Displays taxa count, calibrations, and calibration table (Type + Calibration columns).
+
 **Example:**
 
-```bash
-$ fosstree info strategy1.tree
+```
+$ fosstree info my_tree.tree
 
-Phylogenetic Tree: strategy1.tree
-  Taxa: 54
-  Calibrations: 34
-  Max depth: 15
+Phylogenetic Tree: my_tree.tree
+  Taxa: 16
+  Calibrations: 3
+  Max depth: 5
 
-Clade Name                                       Lower    Upper  #Taxa
-----------------------------------------------------------------------
-root_all                                        5.5285   8.3300     54
-Acanthoscu_to_Xenoturbel_1                      5.5285   6.3610     51
-Acropora_m_to_Nematostel                        5.2900   6.3610      5
-...
+Clade Name                                    Type Calibration                     #Taxa
+----------------------------------------------------------------------------------------
+root_all                                         G G(1.92,0.66)                       16
+t1_to_t9                                         B B(1.945,2.3773)                     4
+t11_to_t6                                        B B(1.471,1.798)                      7
 ```
 
----
+### `convert` — BEAST2 XML
 
-### `convert` — BEAST2 XML Generation
-
-Convert MCMCTree `B()` calibrations to BEAST2 MRCAPrior XML.
+Convert MCMCTree calibrations to BEAST2 MRCAPrior XML.
 
 ```bash
 fosstree convert <tree_file> [options]
 ```
 
-**Options:**
-
 | Flag | Default | Description |
 |------|---------|-------------|
-| `-o`, `--output` | stdout | Output XML file path |
+| `-o`, `--output` | stdout | Output XML file |
 | `--tree-ref` | `@Tree.t:alignment` | BEAST2 tree ID reference |
-| `--uniform-start` | `0` | Starting index for Uniform distribution IDs |
+| `--uniform-start` | `0` | Starting distribution ID index |
 
-**Examples:**
+### `view` — Visualization
 
-```bash
-# Print to terminal
-fosstree convert strategy1.tree
-
-# Save to file
-fosstree convert strategy1.tree -o mrca_priors.xml
-
-# Custom BEAST2 tree reference
-fosstree convert strategy1.tree --tree-ref "@Tree.t:Comb-16taxa-1x"
-
-# Avoid ID collisions (start Uniform IDs at 50)
-fosstree convert strategy1.tree --uniform-start 50 -o priors.xml
-```
-
----
-
-### `view` — Tree Visualization
-
-Render the phylogenetic tree as a figure file.
+Render the tree as a figure file.
 
 ```bash
 fosstree view <tree_file> [options]
 ```
 
-**Options:**
-
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-o`, `--output` | `<tree_file>.pdf` | Output file path |
-| `--theme` | `light` | Color theme: `light` or `dark` |
-| `--formats` | inferred from `-o` | Output formats (space-separated): `pdf`, `svg`, `png` |
+| `--theme` | `light` | `light` or `dark` |
+| `--formats` | inferred | `pdf`, `svg`, `png` (space-separated) |
 | `--fig-width` | `20.0` | Figure width in inches |
 | `--dpi` | `300` | Output resolution |
-
-**Examples:**
-
-```bash
-# Default: saves as strategy1.pdf
-fosstree view strategy1.tree
-
-# Dark theme, multiple formats
-fosstree view strategy1.tree --theme dark --formats pdf svg png
-
-# Custom output and high DPI
-fosstree view strategy1.tree -o figures/tree.pdf --dpi 600
-
-# Extra-wide figure for large trees
-fosstree view strategy1.tree --fig-width 30
-```
-
----
-
-## Exit Codes
-
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Error (file not found, parse error, etc.) |

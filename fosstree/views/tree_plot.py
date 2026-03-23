@@ -71,6 +71,7 @@ class TreeVisualizer:
         leaf_font: str = "monospace",
         cmap_name: str = "coolwarm",
         dpi: int = 300,
+        show_branch_lengths: bool = False,
     ):
         if theme not in THEMES:
             raise ValueError(f"Unknown theme {theme!r}. Choose from: {list(THEMES)}")
@@ -85,6 +86,7 @@ class TreeVisualizer:
         self.leaf_font = leaf_font
         self.cmap = cm.get_cmap(cmap_name)
         self.dpi = dpi
+        self.show_branch_lengths = show_branch_lengths
 
     # ── Layout computation ─────────────────────────────────────────────
 
@@ -101,39 +103,62 @@ class TreeVisualizer:
         return depth
 
     def _compute_layout(
-        self, tree: PhyloTree
-    ) -> tuple[dict[int, tuple[float, float]], int]:
+        self, tree: PhyloTree, scaled: bool = False,
+    ) -> tuple[dict[int, tuple[float, float]], float]:
         """Compute (x, y) positions for every node.
 
-        X = depth (cladogram: all leaves at max_depth).
-        Y = leaf traversal order.
+        When scaled=False (cladogram):
+            X = integer depth; all leaves aligned at max_depth.
+        When scaled=True (phylogram):
+            X = cumulative branch length from root; leaves at varying positions.
+
+        Y = leaf traversal order in both modes.
         Internal nodes: y = mean of children y values.
 
         Returns:
             pos: {node_id: (x, y)}
-            max_depth: int
+            max_x: maximum x value across all nodes
         """
-        depth = self._compute_depth(tree.root)
-        max_depth = max(depth.values())
-
         leaf_y: dict[int, int] = {}
         for idx, leaf in enumerate(tree.root.traverse_leaves()):
             leaf_y[leaf.node_id] = idx
 
         pos: dict[int, tuple[float, float]] = {}
 
-        def assign(node: TreeNode) -> float:
-            if node.is_leaf:
-                y = leaf_y[node.node_id]
-                pos[node.node_id] = (float(max_depth), float(y))
-                return float(y)
-            child_ys = [assign(c) for c in node.children]
-            y = sum(child_ys) / len(child_ys)
-            pos[node.node_id] = (float(depth[node.node_id]), y)
-            return y
+        if scaled:
+            # Phylogram: x = cumulative branch length from root
+            def assign_scaled(node: TreeNode, parent_x: float) -> float:
+                bl = getattr(node, "branch_length", None) or 0.0
+                x = parent_x + bl
+                if node.is_leaf:
+                    y = float(leaf_y[node.node_id])
+                    pos[node.node_id] = (x, y)
+                    return y
+                child_ys = [assign_scaled(c, x) for c in node.children]
+                y = sum(child_ys) / len(child_ys)
+                pos[node.node_id] = (x, y)
+                return y
 
-        assign(tree.root)
-        return pos, max_depth
+            assign_scaled(tree.root, 0.0)
+        else:
+            # Cladogram: x = integer depth, leaves all at max_depth
+            depth = self._compute_depth(tree.root)
+            max_depth = max(depth.values())
+
+            def assign_clado(node: TreeNode) -> float:
+                if node.is_leaf:
+                    y = leaf_y[node.node_id]
+                    pos[node.node_id] = (float(max_depth), float(y))
+                    return float(y)
+                child_ys = [assign_clado(c) for c in node.children]
+                y = sum(child_ys) / len(child_ys)
+                pos[node.node_id] = (float(depth[node.node_id]), y)
+                return y
+
+            assign_clado(tree.root)
+
+        max_x = max(x for x, _ in pos.values())
+        return pos, max_x
 
     # ── Drawing ────────────────────────────────────────────────────────
 
@@ -154,8 +179,17 @@ class TreeVisualizer:
             PlotResult with fig, ax, node positions, and internal node list.
         """
         t = self.theme
-        pos, max_depth = self._compute_layout(tree)
         n_taxa = tree.n_taxa
+
+        # Check if tree has branch lengths
+        has_branch_lengths = any(
+            getattr(n, "branch_length", None) is not None
+            for n in tree.root.traverse_preorder()
+            if not n.is_root
+        )
+
+        scaled = self.show_branch_lengths and has_branch_lengths
+        pos, max_x = self._compute_layout(tree, scaled=scaled)
 
         # Collect internal nodes for interactive use
         internal_nodes = [
@@ -203,12 +237,49 @@ class TreeVisualizer:
                     solid_capstyle="round",
                 )
 
+        # ── Branch length labels ──
+        if self.show_branch_lengths and has_branch_lengths:
+            for node in tree.root.traverse_preorder():
+                if node.is_root:
+                    continue
+                bl = getattr(node, "branch_length", None)
+                if bl is None:
+                    continue
+                nx, ny = pos[node.node_id]
+                px_parent, _ = pos[node.parent.node_id]
+                mid_x = (px_parent + nx) / 2.0
+                ax.text(
+                    mid_x,
+                    ny - 0.15,
+                    f"{bl:.4g}",
+                    fontsize=self.font_size_label - 1,
+                    color=t["branch"],
+                    ha="center",
+                    va="top",
+                    alpha=0.7,
+                )
+
         # ── Leaf labels ──
         for leaf in tree.root.traverse_leaves():
             lx, ly = pos[leaf.node_id]
             display_name = (leaf.name or "").replace("_", " ")
+
+            if scaled and lx < max_x:
+                # Phylogram: draw dotted guide line from leaf tip to aligned label
+                ax.plot(
+                    [lx, max_x],
+                    [ly, ly],
+                    color=t["branch"],
+                    linewidth=self.line_width * 0.5,
+                    linestyle=":",
+                    alpha=0.3,
+                )
+                label_x = max_x + 0.2
+            else:
+                label_x = lx + 0.2
+
             ax.text(
-                lx + 0.2,
+                label_x,
                 ly,
                 display_name,
                 fontsize=self.font_size_leaf,
@@ -251,7 +322,7 @@ class TreeVisualizer:
             )
 
             # Label
-            label = f"[{idx}] B({cal.lower},{cal.upper})"
+            label = f"[{idx}] {cal.short_label()}"
             ax.annotate(
                 label,
                 xy=(nx, ny),
@@ -276,7 +347,7 @@ class TreeVisualizer:
             )
 
         # ── Axes styling ──
-        ax.set_xlim(-1.5, max_depth + 4.5)
+        ax.set_xlim(-max_x * 0.1, max_x + 4.5)
         ax.set_ylim(-1, n_taxa)
         ax.invert_yaxis()
         ax.axis("off")
@@ -287,7 +358,7 @@ class TreeVisualizer:
             sm.set_array([])
             cbar = plt.colorbar(sm, ax=ax, shrink=0.3, aspect=20, pad=0.01)
             cbar.set_label(
-                "Calibration midpoint (100 Ma)",
+                "Calibration midpoint (Ma/Ga)",
                 fontsize=7,
                 color=t["cbar_label"],
             )

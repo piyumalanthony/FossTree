@@ -1,4 +1,4 @@
-"""Newick tree writer with MCMCTree B() calibration annotations."""
+"""Newick tree writer with MCMCTree calibration annotations."""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from fosstree.models import PhyloTree, TreeNode
 
 
 class NewickWriter:
-    """Serializes a PhyloTree back to Newick format with B() calibrations.
+    """Serializes a PhyloTree back to Newick format with MCMCTree calibrations.
 
     Output format matches MCMCTree:
-        ((A,B)'B(lower,upper,p_lower,p_upper)',C)'B(...)';
+        ((A,B)'B(lower,upper,p_lower,p_upper)',C)'L(tL,p,c,pL)';
     """
 
     def _node_to_newick(self, node: TreeNode) -> str:
@@ -24,13 +24,12 @@ class NewickWriter:
         result = f"({children_str})"
 
         if node.calibration:
-            cal = node.calibration
-            result += f"'B({cal.lower},{cal.upper},{cal.p_lower},{cal.p_upper})'"
+            result += f"'{node.calibration.to_mcmctree()}'"
 
         return result
 
     def to_string(self, tree: PhyloTree) -> str:
-        """Serialize a PhyloTree to a Newick string with B() annotations.
+        """Serialize a PhyloTree to a Newick string with calibration annotations.
 
         Args:
             tree: The PhyloTree to serialize.

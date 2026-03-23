@@ -1,73 +1,43 @@
-# 🧬 Architecture Overview
+# Architecture Overview
 
-FossTree follows a clean **Model–View–Utility** architecture with strict separation of concerns.
+FossTree follows a **Model-View-Utility** architecture with strict separation of concerns.
 
 ## Package Structure
 
 ```
 fosstree/
 ├── models/          Data layer — tree structure and calibrations
+│   └── tree.py      CalibrationBase + 7 subclasses, TreeNode, PhyloTree
 ├── utils/           Logic layer — parsing, conversion, serialization
+│   ├── calibration_parser.py  Shared parse_calibration() for all types
+│   ├── parser.py              NewickParser (Newick + MCMCTree format)
+│   ├── beast_xml.py           BeastXMLGenerator (type-dispatched)
+│   └── writer.py              NewickWriter (polymorphic output)
 └── views/           Presentation layer — visualization and GUI
+    ├── tree_plot.py           TreeVisualizer (cladogram + phylogram)
+    └── gui.py                 PyQt5 GUI application
 ```
 
 ## Design Principles
 
-- **OOP throughout** — every component is a class with clear responsibilities
-- **No circular imports** — models ← utils ← views (one-way dependency)
+- **Polymorphic calibrations** — `CalibrationBase` ABC with 7 concrete types; consuming code uses `to_mcmctree()`, `short_label()`, `midpoint` without knowing the type
+- **No circular imports** — models <- utils <- views (one-way dependency)
 - **Dual interface** — every feature is usable via CLI, GUI, and Python API
 - **Immutable topology** — tree structure is fixed after parsing; calibrations are mutable
 
-## Component Dependency Graph
-
-```
-┌──────────────────────────────────────────────────────────────┐
-│  __main__.py (CLI entry point)                               │
-│    ├── cmd_gui()    → views/gui.py                           │
-│    ├── cmd_info()   → utils/parser.py → models/tree.py       │
-│    ├── cmd_convert()→ utils/beast_xml.py                     │
-│    └── cmd_view()   → views/tree_plot.py                     │
-├──────────────────────────────────────────────────────────────┤
-│  views/gui.py  (PyQt5 application)                           │
-│    ├── TreeInfoTab      → PhyloTree.get_calibration_table()  │
-│    ├── ConvertTab       → BeastXMLGenerator                  │
-│    ├── ViewTab          → TreeVisualizer.plot()               │
-│    │   ├── hover/click  → TreeNode.get_leaf_names()          │
-│    │   ├── dbl-click    → CalibrationDialog → Calibration    │
-│    │   └── export nwk   → NewickWriter                       │
-│    └── ZoomableScrollCanvas (Ctrl+scroll zoom)               │
-├──────────────────────────────────────────────────────────────┤
-│  views/tree_plot.py  (matplotlib rendering)                  │
-│    └── TreeVisualizer.plot() → PlotResult                    │
-│        ├── node_positions: {node_id: (x, y)}                 │
-│        └── internal_nodes: [TreeNode, ...]                   │
-├──────────────────────────────────────────────────────────────┤
-│  utils/parser.py      NewickParser   → PhyloTree             │
-│  utils/beast_xml.py   BeastXMLGenerator → XML string         │
-│  utils/writer.py      NewickWriter   → Newick string         │
-├──────────────────────────────────────────────────────────────┤
-│  models/tree.py                                              │
-│    ├── Calibration  (lower, upper, p_lower, p_upper)         │
-│    ├── TreeNode     (node_id, name, children, parent, cal)   │
-│    └── PhyloTree    (root, taxa, calibrated_nodes, summary)  │
-└──────────────────────────────────────────────────────────────┘
-```
-
 ## Data Flow
 
-1. **Input**: Newick string with `B()` annotations (file or string)
-2. **Parse**: `NewickParser` builds a tree of `TreeNode` objects → `PhyloTree`
-3. **Interact**: GUI or API modifies `Calibration` on `TreeNode` objects
-4. **Output**: `BeastXMLGenerator`, `NewickWriter`, or `TreeVisualizer` reads `PhyloTree`
-
-The `PhyloTree` object is the central data structure. All operations read from or write to it.
+1. **Input**: Newick string or MCMCTree format file
+2. **Parse**: `NewickParser` builds `TreeNode` tree -> `PhyloTree`, computes `tip_dist` if branch lengths present
+3. **Interact**: GUI or API modifies calibrations on `TreeNode` objects
+4. **Output**: `BeastXMLGenerator` (type-dispatched XML), `NewickWriter` (polymorphic), or `TreeVisualizer` (cladogram/phylogram)
 
 ## Key Design Decisions
 
 | Decision | Rationale |
 |----------|-----------|
-| `TreeNode` uses parent pointers | Enables upward traversal for depth computation |
-| Calibrations are mutable on nodes | Allows interactive editing without rebuilding the tree |
-| `PlotResult` carries node positions | Enables GUI hit-testing without re-computing layout |
-| `NewickWriter` walks the tree recursively | Guarantees structural fidelity on roundtrip |
-| PyQt5 over tkinter | More mature widget set, better matplotlib integration |
+| Abstract base class for calibrations | Polymorphic `to_mcmctree()` / `short_label()` — no switch statements in consuming code |
+| Shared `parse_calibration()` | Single parser used by both `NewickParser` and GUI dialog |
+| `tip_dist` computed at parse time | Available for display without recomputation |
+| Phylogram layout alongside cladogram | Same `_compute_layout()` with `scaled` flag — no code duplication |
+| `Calibration = BoundsCalibration` alias | Backward compatibility with existing code |

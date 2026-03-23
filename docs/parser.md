@@ -1,89 +1,87 @@
-# 🌳 Newick Parser — `fosstree.utils.parser`
+# Newick Parser — `fosstree.utils.parser`
 
-Parses Newick format strings with MCMCTree `B()` calibration annotations into `PhyloTree` objects.
+Parses Newick format strings with MCMCTree calibration annotations into `PhyloTree` objects.
 
 **Source**: `fosstree/utils/parser.py`
 
 ---
 
-## `NewickParser`
-
-### Basic Usage
+## Usage
 
 ```python
 from fosstree.utils import NewickParser
 
 parser = NewickParser()
 
-# From file
-tree = parser.parse_file("strategy1.tree")
+# From file (plain Newick or MCMCTree format)
+tree = parser.parse_file("my_tree.tree")
 
 # From string
-tree = parser.parse_string(
-    "((A,B)'B(5.29,6.361,0.001,0.025)',C);",
-    source="example"
-)
+tree = parser.parse_string("((A,B)'B(5.29,6.361)',C);")
 ```
 
 ### Methods
 
-| Method | Parameters | Returns | Description |
-|--------|-----------|---------|-------------|
-| `parse_file(filepath)` | `str \| Path` | `PhyloTree` | Parse a Newick tree file |
-| `parse_string(newick_str, source="")` | `str, str` | `PhyloTree` | Parse a Newick string |
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `parse_file(filepath)` | `PhyloTree` | Parse a Newick tree file |
+| `parse_string(newick_str, source="")` | `PhyloTree` | Parse a Newick string |
 
 ---
 
-## Supported Format
+## Supported Formats
 
-### Standard Newick
+### Plain Newick
 
 ```
 ((A,B),C);
 ((A:0.1,B:0.2):0.3,C:0.4);
 ```
 
-Branch lengths after `:` are parsed but not used in cladogram layout.
+Branch lengths after `:` are parsed and stored on nodes.
 
-### MCMCTree Calibration Annotations
+### MCMCTree Format
 
-Calibrations are attached to internal nodes as quoted strings after the closing `)`:
-
-```
-((A,B)'B(lower,upper,p_lower,p_upper)',C);
-```
-
-**Examples:**
+Files that start with a header line (e.g. `16 1` meaning 16 taxa, 1 tree) are auto-detected. The parser emits a warning and reads the tree from the first `(`:
 
 ```
-# Full format with tail probabilities
-((Human,Mouse)'B(0.616,1.646,0.001,0.025)',Chicken);
-
-# Nested calibrations
-(((A,B)'B(1.0,2.0,0.001,0.025)',(C,D))'B(3.0,4.0,0.001,0.025)',E);
+16 1
+((((t8:1.64,t15:1.64):0.52,...)'B(1.945,2.377)':0.35,...)'G(1.92,0.66)';
 ```
 
-### Supported Calibration Patterns
+### Supported Calibration Types
 
-| Pattern | Parsed as |
-|---------|-----------|
-| `'B(5.29,6.361,0.001,0.025)'` | lower=5.29, upper=6.361, p_lower=0.001, p_upper=0.025 |
-| `'B(5.29,6.361)'` | lower=5.29, upper=6.361, p_lower=0.001 (default), p_upper=0.025 (default) |
+All MCMCTree calibration types are recognized in quoted annotations after `)`:
+
+| Pattern | Example |
+|---------|---------|
+| `B(lower, upper[, pL, pU])` | `'B(0.616,1.646,0.001,0.025)'` |
+| `L(tL[, p, c, pL])` | `'L(0.06,0.1,1,0.025)'` |
+| `U(tU[, pR])` | `'U(0.08,0.025)'` |
+| `G(alpha, beta)` | `'G(2,5)'` |
+| `SN(location, scale, shape)` | `'SN(0.5,0.1,3)'` |
+| `ST(location, scale, shape, df)` | `'ST(0.5,0.1,3,5)'` |
+| `S2N(p1, loc1, s1, sh1, loc2, s2, sh2)` | `'S2N(0.3,0.5,0.1,2,1.0,0.2,-1)'` |
+
+Optional parameters use MCMCTree defaults when omitted.
 
 ### What the Parser Handles
 
+- All 7 MCMCTree calibration types
+- MCMCTree format files with header lines
+- Branch lengths (stored on nodes, used for phylogram visualization)
+- Tip distance computation (auto-computed when branch lengths are present)
 - Arbitrarily nested parentheses
-- Taxon names with underscores (e.g., `Homo_sapie`)
-- Optional branch lengths after `:`
-- `B()` annotations with 2 or 4 parameters
-- Trees ending with or without `;`
-- Leading/trailing whitespace
+- Taxon names with underscores
+- Trees with or without `;`
 
-### File Format
+### Shared Parser
 
-Tree files should contain a single Newick string (one line or wrapped). The parser reads the entire file as one string.
+The `parse_calibration()` function is available for parsing calibration strings independently:
 
-```
-# strategy1.tree
-((Amphimedon,Suberites_),(Trichoplax,(...)'B(5.29,6.361,0.001,0.025)',...)'B(5.5285,8.33,0.001,0.001)';
+```python
+from fosstree.utils import parse_calibration
+
+cal = parse_calibration("G(2,5)")
+# GammaCalibration(alpha=2.0, beta=5.0)
 ```

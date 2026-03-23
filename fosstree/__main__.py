@@ -24,7 +24,7 @@ def cmd_info(args: argparse.Namespace) -> None:
 
 
 def cmd_convert(args: argparse.Namespace) -> None:
-    """Convert MCMCTree B() calibrations to BEAST2 MRCAPrior XML."""
+    """Convert MCMCTree calibrations to BEAST2 MRCAPrior XML."""
     from fosstree.utils import NewickParser, BeastXMLGenerator
 
     parser = NewickParser()
@@ -57,7 +57,7 @@ def cmd_view(args: argparse.Namespace) -> None:
     )
 
     output = Path(args.output) if args.output else Path(args.tree_file).with_suffix(".pdf")
-    title = f"{Path(args.tree_file).name} — Phylogenetic Tree with B() Fossil Calibrations"
+    title = f"{Path(args.tree_file).name} — Phylogenetic Tree with Fossil Calibrations"
 
     saved = viz.save(tree, output, title=title, formats=args.formats)
     for p in saved:
@@ -89,13 +89,13 @@ def main(argv: list[str] | None = None) -> None:
 
     # ── info ──
     p_info = sub.add_parser("info", help="Show tree summary and calibration table")
-    p_info.add_argument("tree_file", help="Newick tree file with B() calibrations")
+    p_info.add_argument("tree_file", help="Newick tree file with MCMCTree calibrations")
 
     # ── convert ──
     p_conv = sub.add_parser(
-        "convert", help="Convert B() calibrations to BEAST2 MRCAPrior XML"
+        "convert", help="Convert MCMCTree calibrations to BEAST2 MRCAPrior XML"
     )
-    p_conv.add_argument("tree_file", help="Newick tree file with B() calibrations")
+    p_conv.add_argument("tree_file", help="Newick tree file with MCMCTree calibrations")
     p_conv.add_argument("-o", "--output", help="Output XML file (default: stdout)")
     p_conv.add_argument(
         "--tree-ref",
@@ -113,7 +113,7 @@ def main(argv: list[str] | None = None) -> None:
     p_view = sub.add_parser(
         "view", help="Render tree visualization with calibration labels"
     )
-    p_view.add_argument("tree_file", help="Newick tree file with B() calibrations")
+    p_view.add_argument("tree_file", help="Newick tree file with MCMCTree calibrations")
     p_view.add_argument(
         "-o", "--output", help="Output file path (default: <tree_file>.pdf)"
     )
