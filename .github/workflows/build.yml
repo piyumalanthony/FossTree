@@ -45,12 +45,12 @@ jobs:
       - name: Test executable (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
-          ./dist/fosstree/fosstree info strategy1.tree
+          ./dist/fosstree/fosstree info examples/strategy1.tree
 
       - name: Test executable (Windows)
         if: runner.os == 'Windows'
         run: |
-          .\dist\fosstree\fosstree.exe info strategy1.tree
+          .\dist\fosstree\fosstree.exe info examples\strategy1.tree
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
