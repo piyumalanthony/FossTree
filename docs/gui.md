@@ -16,6 +16,12 @@ python -m fosstree    # module invocation
 
 ---
 
+## Multiple Windows
+
+Open additional independent windows via **File → New Window** or **Ctrl+N**. Each window has its own tree, tabs, and visualization — edits in one window do not affect others. Closing a window does not affect other open windows; the application exits when the last window is closed.
+
+---
+
 ## Workflow
 
 ### Phase 1: Load Tree File
@@ -61,6 +67,14 @@ Double-click any internal node to open. Features:
 
 After applying or removing, the tree re-renders and all tabs refresh.
 
+### In-place editing
+
+When a node already has a calibration, the dialog pre-populates the type selector and input field with the current values. Edit the string directly and click **Apply** to update in a single step — no need to remove first.
+
+- **Same type selected** — input field stays populated with the existing calibration string
+- **Different type selected** — input field clears and shows placeholder/help text for the new type
+- **Switch back to original type** — input field re-populates with the existing calibration string
+
 ---
 
 ## Visualization Options
@@ -88,6 +102,7 @@ After applying or removing, the tree re-renders and all tabs refresh.
 
 | Control | Action |
 |---------|--------|
+| Ctrl+N | Open a new independent window |
 | Ctrl + scroll | Zoom (0.2x - 5x) |
 | Scroll | Pan |
 | Fit to Window | Auto-scale to viewport |

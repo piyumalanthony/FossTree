@@ -15,7 +15,8 @@ FossTree is a tool for working with fossil calibrations on phylogenetic trees. I
 - **Parse** Newick trees with all MCMCTree calibration types: `B()`, `L()`, `U()`, `G()`, `SN()`, `ST()`, `S2N()`
 - **Auto-detect** MCMCTree format files (e.g. header line `16 1` followed by tree)
 - **Visualize** as cladogram (unscaled) or phylogram (branch-length scaled)
-- **Interact** with nodes: hover for taxa, click for details, double-click to calibrate
+- **Interact** with nodes: hover for taxa, click for details, double-click to add or edit calibrations in place
+- **Multi-window** support — open multiple independent windows to work on different trees simultaneously (Ctrl+N)
 - **Convert** calibrations to BEAST2 MRCAPrior XML
 - **Export** modified trees back to MCMCTree Newick format
 

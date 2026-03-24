@@ -9,6 +9,7 @@ from typing import Optional
 from PyQt5.QtCore import Qt, QEvent
 from PyQt5.QtGui import QFont, QCursor
 from PyQt5.QtWidgets import (
+    QAction,
     QApplication,
     QCheckBox,
     QComboBox,
@@ -21,6 +22,7 @@ from PyQt5.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenuBar,
     QMessageBox,
     QPushButton,
     QScrollArea,
@@ -111,6 +113,7 @@ class CalibrationDialog(QDialog):
         super().__init__(parent)
         self.node = node
         self.result_calibration: Optional[CalibrationBase] = None
+        self._original_type = node.calibration.cal_type if node.calibration else None
 
         self.setWindowTitle("Add / Edit Fossil Calibration")
         self.setMinimumWidth(500)
@@ -189,7 +192,10 @@ class CalibrationDialog(QDialog):
 
     def _on_type_changed(self, cal_type: str) -> None:
         placeholder, help_text = _CAL_HELP.get(cal_type, _CAL_HELP["B"])
-        if not self.input_field.text():
+        if cal_type == self._original_type and self.node.calibration:
+            self.input_field.setText(self.node.calibration.to_mcmctree())
+        else:
+            self.input_field.clear()
             self.input_field.setPlaceholderText(placeholder)
         self.help_label.setText(help_text)
 
@@ -829,16 +835,32 @@ class ViewTab(QWidget):
 class FossTreeMainWindow(QMainWindow):
     """Main application window with phased workflow."""
 
+    _open_windows: list = []
+
     def __init__(self):
         super().__init__()
+        FossTreeMainWindow._open_windows.append(self)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.tree: Optional[PhyloTree] = None
         self.parser = NewickParser()
         self._setup_ui()
+
+    def closeEvent(self, event):
+        if self in FossTreeMainWindow._open_windows:
+            FossTreeMainWindow._open_windows.remove(self)
+        super().closeEvent(event)
 
     def _setup_ui(self) -> None:
         self.setWindowTitle("FossTree — Fossil Calibration Annotation Tool")
         self.setMinimumSize(1000, 700)
         self.resize(1200, 800)
+
+        # ── Menu bar ──
+        menubar = self.menuBar()
+        file_menu = menubar.addMenu("File")
+        new_win_action = file_menu.addAction("New Window")
+        new_win_action.setShortcut("Ctrl+N")
+        new_win_action.triggered.connect(self._open_new_window)
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -929,6 +951,10 @@ class FossTreeMainWindow(QMainWindow):
                 f"Loaded: {self.tree.source} — "
                 f"{self.tree.n_taxa} taxa, {self.tree.n_calibrations} calibrations"
             )
+
+    def _open_new_window(self) -> None:
+        win = FossTreeMainWindow()
+        win.show()
 
 
 def run_gui() -> None:

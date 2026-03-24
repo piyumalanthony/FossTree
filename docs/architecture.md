@@ -41,3 +41,4 @@ fosstree/
 | `tip_dist` computed at parse time | Available for display without recomputation |
 | Phylogram layout alongside cladogram | Same `_compute_layout()` with `scaled` flag — no code duplication |
 | `Calibration = BoundsCalibration` alias | Backward compatibility with existing code |
+| Multi-window via instance independence | All state is per-`FossTreeMainWindow` instance (tree, parser, tabs) — no singletons, no shared mutable state. Class-level `_open_windows` list only prevents garbage collection |
