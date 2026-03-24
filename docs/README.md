@@ -17,3 +17,8 @@
 
 - [CLI Reference](cli.md) — all command-line options and examples
 - [Building Executables](building.md) — PyInstaller, GitHub Actions, cross-platform distribution
+
+## Repository Layout
+
+- `examples/` — example tree files (`strategy1.tree`, `tree_2_2_01_16_mid.nwk`)
+- `notebooks/` — Jupyter notebooks and generated figures
