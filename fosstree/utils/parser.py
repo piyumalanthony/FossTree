@@ -92,7 +92,7 @@ class NewickParser:
                         i += 1
                     m_br  =  re.search(r":(\d+\.?\d*(?:[eE][+-]?\d+)?)", s[start_br:i + 1])
                     if m_br:
-                        closed.branch_length = float(m_br.group(1))
+                        closed.branch_len = float(m_br.group(1))
 
             elif c == ":":
                 # Leaf branch length
@@ -103,7 +103,7 @@ class NewickParser:
                 if last_leaf is not None:
                     m_br = re.search(r":(\d+\.?\d*(?:[eE][+-]?\d+)?)", s[start_br:i + 1])
                     if m_br:
-                        last_leaf.branch_length = float(m_br.group(1))
+                        last_leaf.branch_len = float(m_br.group(1))
                     last_leaf = None
 
             else:
@@ -124,7 +124,7 @@ class NewickParser:
 
         # Compute tip distances if branch lengths are available
         has_bl = any(
-            getattr(n, "branch_length", None) is not None
+            n.branch_len is not None
             for n in root.traverse_preorder()
             if not n.is_root
         )

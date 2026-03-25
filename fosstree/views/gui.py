@@ -820,12 +820,14 @@ class ViewTab(QWidget):
         )
         if path:
             writer = NewickWriter()
-            out = writer.write_file(self.tree, path)
+            bl = self.chk_branch_lengths.isChecked()
+            out = writer.write_file(self.tree, path, include_branch_lengths=bl)
+            bl_msg = " (with branch lengths)" if bl else ""
             QMessageBox.information(
                 self,
                 "Exported",
                 f"MCMCTree Newick saved to:\n{out}\n\n"
-                f"Calibrations: {self.tree.n_calibrations}",
+                f"Calibrations: {self.tree.n_calibrations}{bl_msg}",
             )
 
 

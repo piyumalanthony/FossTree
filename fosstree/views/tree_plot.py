@@ -128,7 +128,7 @@ class TreeVisualizer:
         if scaled:
             # Phylogram: x = cumulative branch length from root
             def assign_scaled(node: TreeNode, parent_x: float) -> float:
-                bl = getattr(node, "branch_length", None) or 0.0
+                bl = node.branch_len or 0.0
                 x = parent_x + bl
                 if node.is_leaf:
                     y = float(leaf_y[node.node_id])
@@ -183,7 +183,7 @@ class TreeVisualizer:
 
         # Check if tree has branch lengths
         has_branch_lengths = any(
-            getattr(n, "branch_length", None) is not None
+            n.branch_len is not None
             for n in tree.root.traverse_preorder()
             if not n.is_root
         )
@@ -242,7 +242,7 @@ class TreeVisualizer:
             for node in tree.root.traverse_preorder():
                 if node.is_root:
                     continue
-                bl = getattr(node, "branch_length", None)
+                bl = node.branch_len
                 if bl is None:
                     continue
                 nx, ny = pos[node.node_id]

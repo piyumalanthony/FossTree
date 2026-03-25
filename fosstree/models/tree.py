@@ -371,7 +371,7 @@ class PhyloTree:
             max_dist = 0.0
             for child in node.children:
                 child_dist = _compute(child)
-                bl = getattr(child, "branch_length", None) or 0.0
+                bl = child.branch_len or 0.0
                 max_dist = max(max_dist, bl + child_dist)
             node.tip_dist = max_dist
             return max_dist
